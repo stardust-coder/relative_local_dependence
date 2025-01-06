@@ -1,1 +1,4 @@
 result
+*.png
+*.txt
+.DS_Store
