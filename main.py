@@ -158,9 +158,10 @@ def objective(x,y,data,theta,band):
 def argmax_objective(x,y,data,band):
     res = []
     alpha = 3
-    # true_value = 2 * alpha ### When ground truth is Frank copula 
-    true_value = ((1/clayton_cdf(alpha,x,y))* alpha * (1+2*alpha) / (1+alpha)) ### When ground truth is Clayton copula 
-    true_value = true_value/2
+    true_value = 2 * alpha ### When ground truth is Frank copula 
+    # true_value = ((1/clayton_cdf(alpha,x,y))* alpha * (1+2*alpha) / (1+alpha)) ### When ground truth is Clayton copula 
+
+    true_value = true_value/2 # don't erase
     l = np.arange(true_value-4,true_value+4,0.1)
     for k in l: #grid search that maximizes the likelihood
         res.append(objective(x,y,data,theta=k,band=band))
@@ -268,15 +269,15 @@ def run(mode,data,save_flag):
             alpha = 3
             x = X[i][j]
             y = Y[i][j]
-            GT[i][j] = ((1/clayton_cdf(alpha,x,y))* alpha * (1+2*alpha) / (1+alpha))
+            GT[i][j] = 2*alpha # ((1/clayton_cdf(alpha,x,y))* alpha * (1+2*alpha) / (1+alpha))
     np.savetxt('GT.txt', GT)
 
 
 if __name__ == "__main__":
      # Data Sample
     from statsmodels.distributions.copula.api import FrankCopula, ClaytonCopula
-    # data = FrankCopula(theta=3, k_dim=2).rvs(nobs=1000)
-    data = ClaytonCopula(theta=3, k_dim=2).rvs(nobs=1000)
+    data = FrankCopula(theta=3, k_dim=2).rvs(nobs=2000)
+    # data = ClaytonCopula(theta=3, k_dim=2).rvs(nobs=1000)
 
     save(data,"orig_data_tmp",grid=False)
     rank_data = preprocess(data)
@@ -303,14 +304,14 @@ if __name__ == "__main__":
     GT = GT
 
     datasets = [GT,M1,M2,M3]
-    fig, axs = plt.subplots(1, 3)
+    fig, axs = plt.subplots(1, 4)
     from matplotlib import colors
     norm = colors.Normalize(vmin=np.min(datasets), vmax=np.max(datasets))
     images = []
     for ax, data in zip(axs.flat, datasets):
-        images.append(ax.imshow(data, norm=norm))
+        images.append(ax.imshow(np.rot90(data), norm=norm,cmap=plt.cm.jet))
+        ax.axis("off")
     fig.colorbar(images[0], ax=axs, orientation='horizontal', fraction=.1)
     fig.savefig("2D.png")
-
 
 
