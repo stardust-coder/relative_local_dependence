@@ -1,8 +1,10 @@
+import os
 from time import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from math import sqrt, pi
+import math
+from math import sqrt, pi, exp, log
 import numpy as np
 from scipy.stats import norm
 from scipy.stats import rankdata
@@ -58,6 +60,7 @@ def relative_local_dependence_bilinear_estimator(samples,x,y,band): #Naive
     kernel = biweight_univariate_density
     sigma1 = np.std(samples.T[0])#variance
     sigma2 = np.std(samples.T[1])#variance
+    
     rho = np.corrcoef(samples.T)[0][1]#correlation 
     term1 = 5/7 #gaussian kernelなら1/2sqrt(pi)
     term2 = 1/7 #gaussian kernel なら1
@@ -67,9 +70,10 @@ def relative_local_dependence_bilinear_estimator(samples,x,y,band): #Naive
     common /= n**(1/6)
     h1 = sigma1 * common
     h2 = sigma2 * common
+
     if band:
         h1, h2 = band
-    h1, h2 = h1*2, h2*2
+    
     print("Bandwidths:",h1,h2)
 
     def g(i,j,samples_,x0,y0):
@@ -152,7 +156,39 @@ def objective(x,y,data,theta,band):
         
     tmp_ /= len(data)
     tmp2_ = get_double_integral(x,y)
-    # print(tmp_,tmp2_)
+    return tmp_ - tmp2_
+
+def objective2(x,y,data,theta,band): #Simpler kernel function that does not require numerical integral.
+    if not band:
+        h1, h2 = get_rule_of_thumb_bandwidth(data)
+    else:
+        h1, h2 = band ###Change if needed
+    # print("Bandwidth calcuated by rule of thumb: ", h1,h2)
+
+    def K_uniform(t):
+        if -1 < t < 1:
+            return 1/2
+        else:
+            return 0
+    
+    def Kh1(t):
+        return K_uniform(t/h1)/h1
+
+    def Kh2(t):
+        return K_uniform(t/h2)/h2
+    
+    def Frank_cdf(u, v):
+        return -log(1+(exp(-theta*u)-1)*(exp(-theta*v)-1)/(exp(-theta)-1))/theta
+
+    tmp_ = 0
+    for i in range(len(data)):
+        xi,yi = data[i][0],data[i][1]
+        tmp_ += Kh1(xi-x)*Kh2(yi-y)*log_frank_density(theta,xi,yi)
+        
+    tmp_ /= len(data)
+    tmp2_ = Frank_cdf(min(x+h1,1),min(y+h2,1)) - Frank_cdf(min(x+h1,1),max(y-h2,0)) - Frank_cdf(max(x-h1,0),min(y+h2,1)) +Frank_cdf(max(x-h1,0),max(y-h2,0))
+    tmp2_ /= 2*h1
+    tmp2_ /= 2*h2
     return tmp_ - tmp2_
 
 def argmax_objective(x,y,data,band):
@@ -163,9 +199,11 @@ def argmax_objective(x,y,data,band):
 
     true_value = true_value/2 # don't erase
     l = np.arange(true_value-4,true_value+4,0.1)
+    
     for k in l: #grid search that maximizes the likelihood
-        res.append(objective(x,y,data,theta=k,band=band))
+        res.append(objective2(x,y,data,theta=k,band=band))
     ind = res.index(max(res))
+
     return l[ind]
 
 def relative_local_dependence_frank_estimator(x,y,data,band):
@@ -187,7 +225,7 @@ def save(arr, filename, grid=False):
             plt.hlines(y, 0, 1, colors="gray", linewidth=1)
     plt.savefig(f"{filename}.png")
 
-def run(mode,data,save_flag):
+def run(mode,data,save_flag,common_band=None):
     N = 10
     x_grid = np.linspace(0.15,0.95,N)
     y_grid = np.linspace(0.15,0.95,N)
@@ -207,7 +245,7 @@ def run(mode,data,save_flag):
     start_time = time()
     if mode == "bilinear":    # Local bilinear fitting
         print("LOCAL BILINEAR FITTING...")    
-        Z_new,f1,sd = relative_local_dependence_bilinear_estimator(data,X,Y,band=None)
+        Z_new,f1,sd = relative_local_dependence_bilinear_estimator(data,X,Y,band=(common_band,common_band))
         if use_mask:### Put a MASK where data points are too few
             cutoff = np.quantile(a = f1, q = [0.6])
             masked_new = np.where(f1 < cutoff,0,Z_new)
@@ -243,7 +281,7 @@ def run(mode,data,save_flag):
         for i in tqdm(range(N)):
             for j in range(N):
                 x,y = x_grid[i],y_grid[j]
-                Z_new[i][j] = relative_local_dependence_frank_estimator(x,y,data,band=None) 
+                Z_new[i][j] = relative_local_dependence_frank_estimator(x,y,data,band=(common_band,common_band)) 
 
         if use_mask:### Put a MASK where data points are too few
             cutoff = np.quantile(a = f1, q = [0.6])
@@ -267,51 +305,90 @@ def run(mode,data,save_flag):
     for i in range(N):
         for j in range(N):
             alpha = 3
-            x = X[i][j]
-            y = Y[i][j]
-            GT[i][j] = 2*alpha # ((1/clayton_cdf(alpha,x,y))* alpha * (1+2*alpha) / (1+alpha))
+            x = x_grid[i]
+            y = y_grid[j]
+            GT[i][j] = 2*alpha 
+            # GT[i][j] = (1/clayton_cdf(alpha,x,y)) * alpha * (1+2*alpha) / (1+alpha)
     np.savetxt('GT.txt', GT)
 
 
 if __name__ == "__main__":
+    
+    exp_id = 1
+    os.chdir(f'result/{exp_id}')
+
      # Data Sample
-    from statsmodels.distributions.copula.api import FrankCopula, ClaytonCopula
-    data = FrankCopula(theta=3, k_dim=2).rvs(nobs=2000)
-    # data = ClaytonCopula(theta=3, k_dim=2).rvs(nobs=1000)
+    tmp1 = []
+    tmp3 = []
+    for _ in range(30):
+        from statsmodels.distributions.copula.api import FrankCopula, ClaytonCopula
+        data = FrankCopula(theta=3, k_dim=2).rvs(nobs=2000)
+        # data = ClaytonCopula(theta=3, k_dim=2).rvs(nobs=2000)
 
-    save(data,"orig_data_tmp",grid=False)
-    rank_data = preprocess(data)
-    save(rank_data,"rank_data_tmp",grid=False)
+        save(data,"orig_data_tmp",grid=False)
+        rank_data = preprocess(data)
+        save(rank_data,"rank_data_tmp",grid=False)
 
-    run(mode="bilinear",data=rank_data,save_flag="bilinear_rankdata")
-    run(mode="bilinear_ppf",data=rank_data,save_flag="bilinear_ppf_rankdata")
-    run(mode="frank",data=rank_data,save_flag="frank_rankdata")
-
-    M1 = np.loadtxt("Z_bilinear_rankdata.txt")
-    M2 = np.loadtxt("Z_bilinear_ppf_rankdata.txt")
-    M3 = np.loadtxt("Z_frank_rankdata.txt")
-    GT = np.loadtxt("GT.txt")
-
-    mask = np.ones((10,10))
-    for i in range(10):
-        for j in range(10):
-            if abs(i - j) >= 6:
-                mask[i][j] = 0
-
-    M1 = M1 * mask
-    M2 = M2 * mask
-    M3 = M3 * mask
-    GT = GT
-
-    datasets = [GT,M1,M2,M3]
-    fig, axs = plt.subplots(1, 4)
-    from matplotlib import colors
-    norm = colors.Normalize(vmin=np.min(datasets), vmax=np.max(datasets))
-    images = []
-    for ax, data in zip(axs.flat, datasets):
-        images.append(ax.imshow(np.rot90(data), norm=norm,cmap=plt.cm.jet))
-        ax.axis("off")
-    fig.colorbar(images[0], ax=axs, orientation='horizontal', fraction=.1)
-    fig.savefig("2D.png")
+        run(mode="bilinear",data=rank_data,save_flag="bilinear_rankdata",common_band=exp_id/10)
+        # run(mode="bilinear_ppf",data=rank_data,save_flag="bilinear_ppf_rankdata")
+        run(mode="frank",data=rank_data,save_flag="frank_rankdata",common_band=exp_id/10)
 
 
+        # os.chdir("/home/sukeda/relative_local_dependence/result/Frank(θ=3,n=2000)/uniform_kernel/h=0.5")
+        M1 = np.loadtxt("Z_bilinear_rankdata.txt")
+        # M2 = np.loadtxt("Z_bilinear_ppf_rankdata.txt")
+        M3 = np.loadtxt("Z_frank_rankdata.txt")
+        GT = np.loadtxt("GT.txt")
+
+        mask = np.ones((10,10))
+        for i in range(10):
+            for j in range(10):
+                if abs(i - j) >= 6:
+                    mask[i][j] = 0
+
+        M1 = M1 * mask
+        # M2 = M2 * mask
+        M3 = M3 * mask
+        GT = GT
+
+        
+        print("M1_error:",np.sum(np.abs(M1-GT*mask))/80)
+        # print("M2_error:",np.sum(np.abs(M2-GT*mask))/80)
+        print("M3_error:",np.sum(np.abs(M3-GT*mask))/80)
+
+        import pandas as pd
+        
+        def printDataFrame(df):
+            for i in range(len(df.index)):
+                row = list(df.iloc[i])
+                print("\t".join(map(str, ['{:.1f}'.format(x) for x in row])))
+        printDataFrame(pd.DataFrame(np.rot90(M3)))
+
+        tmp1.append(np.sum(np.abs(M1-GT*mask))/80)
+        tmp3.append(np.sum(np.abs(M3-GT*mask))/80)
+
+    print(tmp1)
+    print(tmp3)  
+
+    # for i in range(10):
+    #     for j in range(10):
+    #         if abs(i - j) >= 6:
+    #             M1[i][j] = np.nan
+    #             M2[i][j] = np.nan
+    #             M3[i][j] = np.nan
+    # datasets = [GT,M1,M3]
+    # fig, axs = plt.subplots(1, 3)
+    # from matplotlib import colors
+    # # norm = colors.Normalize(vmin=np.min(datasets), vmax=np.max(datasets))
+    # norm = colors.Normalize(vmin=0, vmax=14)
+    # from matplotlib.cm import ScalarMappable, get_cmap
+    # cmap = get_cmap('coolwarm')
+    # mappable = ScalarMappable(cmap=cmap, norm=norm)
+    # mappable._A = []
+    
+    # images = []
+    # for ax, data in zip(axs.flat, datasets):
+    #     images.append(ax.imshow(np.rot90(data)))
+    #     ax.axis("off")
+    # fig.colorbar(images[0], ax=axs, orientation='horizontal', fraction=.1)
+    # fig.savefig("2D.png")
