@@ -158,7 +158,7 @@ def objective(x,y,data,theta,band):
     tmp2_ = get_double_integral(x,y)
     return tmp_ - tmp2_
 
-def objective2(x,y,data,theta,band): #Simpler kernel function that does not require numerical integral.
+def objective_simplified(x,y,data,theta,band): #Simpler kernel function that does not require numerical integral.
     if not band:
         h1, h2 = get_rule_of_thumb_bandwidth(data)
     else:
@@ -200,8 +200,10 @@ def argmax_objective(x,y,data,band):
     true_value = true_value/2 # don't erase
     l = np.arange(true_value-4,true_value+4,0.1)
     
+    print("[Warning] use Simplified kernel method ...")
     for k in l: #grid search that maximizes the likelihood
-        res.append(objective2(x,y,data,theta=k,band=band))
+        # res.append(objective(x,y,data,theta=k,band=band))  #biweight kernel, 重い
+        res.append(objective_simplified(x,y,data,theta=k,band=band)) #矩形Kernel 軽い
     ind = res.index(max(res))
 
     return l[ind]
@@ -314,7 +316,7 @@ def run(mode,data,save_flag,common_band=None):
 
 if __name__ == "__main__":
     
-    exp_id = 1
+    exp_id = 10
     os.chdir(f'result/{exp_id}')
 
      # Data Sample
@@ -322,7 +324,7 @@ if __name__ == "__main__":
     tmp3 = []
     for _ in range(30):
         from statsmodels.distributions.copula.api import FrankCopula, ClaytonCopula
-        data = FrankCopula(theta=3, k_dim=2).rvs(nobs=2000)
+        data = FrankCopula(theta=3, k_dim=2).rvs(nobs=2000) #sample dataset
         # data = ClaytonCopula(theta=3, k_dim=2).rvs(nobs=2000)
 
         save(data,"orig_data_tmp",grid=False)
@@ -333,8 +335,6 @@ if __name__ == "__main__":
         # run(mode="bilinear_ppf",data=rank_data,save_flag="bilinear_ppf_rankdata")
         run(mode="frank",data=rank_data,save_flag="frank_rankdata",common_band=exp_id/10)
 
-
-        # os.chdir("/home/sukeda/relative_local_dependence/result/Frank(θ=3,n=2000)/uniform_kernel/h=0.5")
         M1 = np.loadtxt("Z_bilinear_rankdata.txt")
         # M2 = np.loadtxt("Z_bilinear_ppf_rankdata.txt")
         M3 = np.loadtxt("Z_frank_rankdata.txt")
