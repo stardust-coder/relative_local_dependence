@@ -225,7 +225,7 @@ def estimate_theta_grid(
     data,
     band=None,
     kernel="uniform",
-    theta_min=-20.0,
+    theta_min=0.0,
     theta_max=20.0,
     step=0.1,
 ):
@@ -252,9 +252,9 @@ def estimate_theta_refined(
     data,
     band=None,
     kernel="uniform",
-    theta_min=-20.0,
+    theta_min=0.0,
     theta_max=20.0,
-    step=0.25,
+    step=0.1,
 ):
     theta0 = estimate_theta_grid(
         x=x,
@@ -293,9 +293,9 @@ def relative_local_dependence_frank_estimator(
     band=None,
     kernel_name="uniform",
     method="refined",
-    theta_min=-20.0,
+    theta_min=0.0,
     theta_max=20.0,
-    step=0.25,
+    step=0.1,
 ):
     if method == "grid":
         theta_hat = estimate_theta_grid(
@@ -323,7 +323,7 @@ def relative_local_dependence_frank_estimator(
 
     else:
         raise ValueError("method must be 'grid' or 'refined'.")
-
+    
     return 2 * theta_hat
 
 
@@ -331,8 +331,8 @@ def kernel_density_estimator(
     data,
     x,
     y,
+    band,
     kernel_name="uniform",
-    band=None,
 ):
     """
     2次元 KDE: f_hat(x, y)
@@ -370,7 +370,7 @@ def local_dependence_frank_estimator(
     data,
     x,
     y,
-    kernel_name="uniform",
+    kernel_name="gaussian",
 ):
     from scipy.stats import rankdata
     from scipy.stats import norm
@@ -379,9 +379,9 @@ def local_dependence_frank_estimator(
         for j in range(2)
     ])
 
-    band = get_bandwidth(data=pobs, band=None, kernel=kernel_name)
-    est1 = relative_local_dependence_frank_estimator(pobs, norm.cdf(x), norm.cdf(y), kernel_name=kernel_name, band=band, method="refined")
-
-    band = get_bandwidth(data=data, band=None, kernel=kernel_name)
-    est2 = kernel_density_estimator(data, x, y, kernel_name=kernel_name, band=band)
+    band1 = get_bandwidth(data=pobs, band=None, kernel=kernel_name)
+    band2 = get_bandwidth(data=data, band=None, kernel=kernel_name)
+    est1 = relative_local_dependence_frank_estimator(pobs, norm.cdf(x), norm.cdf(y), kernel_name=kernel_name, band=band1, method="refined")
+    est2 = kernel_density_estimator(data, x, y, kernel_name=kernel_name, band=band2)
+    
     return est1*est2

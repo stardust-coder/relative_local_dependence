@@ -150,20 +150,24 @@ def run_asymptotic_experiment(
 ):
     rng = np.random.default_rng(seed)
 
-    #bivariate Gaussianからのサンプルを使う場合
-    mean = np.array([0.0, 0.0])
-    cov = np.array([
-        [1,rho],
-        [rho,1],
-    ])
-    true_val = true_local_dependence_gaussian(rho, 1, 1) #定数
+    GT = "frank"
 
-    # #Frank copula + standard normalからのサンプルを使う場合
-    # true_val = true_local_dependence_frank_normal(
-    #     x=x0,
-    #     y=y0,
-    #     theta=rho,
-    # )
+    if GT == "gaussian":
+        #bivariate Gaussianからのサンプルを使う場合
+        mean = np.array([0.0, 0.0])
+        cov = np.array([
+            [1,rho],
+            [rho,1],
+        ])
+        true_val = true_local_dependence_gaussian(rho, 1, 1) #定数
+
+    else:
+        #Frank copula + standard normalからのサンプルを使う場合
+        true_val = true_local_dependence_frank_normal(
+            x=x0,
+            y=y0,
+            theta=rho,
+        )
 
     rows = []
 
@@ -180,15 +184,16 @@ def run_asymptotic_experiment(
             def run_one(child_seed):
                 local_rng = np.random.default_rng(child_seed)
                 
-                #Gaussianの場合
-                samples = local_rng.multivariate_normal(mean, cov, size=n)
-                
-                # #Frankの場合
-                # samples = sample_frank_normal_marginals(
-                #     theta=rho,
-                #     n=n,
-                #     rng=local_rng,
-                # )
+                if GT == "gaussian":
+                    #Gaussianの場合
+                    samples = local_rng.multivariate_normal(mean, cov, size=n)
+                else:
+                    # #Frankの場合
+                    samples = sample_frank_normal_marginals(
+                        theta=rho,
+                        n=n,
+                        rng=local_rng,
+                    )
                 return estimator(
                     samples, x0, y0, kernel_name=kernel_name
                 )
@@ -202,7 +207,14 @@ def run_asymptotic_experiment(
             estimates = []
 
             for _ in tqdm(range(R)):
-                samples = rng.multivariate_normal(mean, cov, size=n)
+                if GT == "gaussian":
+                    samples = rng.multivariate_normal(mean, cov, size=n)
+                else:
+                    samples = sample_frank_normal_marginals(
+                        theta=rho,
+                        n=n,
+                        rng=rng,
+                    )
 
                 est = estimator(
                     samples, x0, y0, kernel_name=kernel_name
@@ -226,7 +238,6 @@ def run_asymptotic_experiment(
             "variance": variance,
             "mse": mse,
         })
-
     return pd.DataFrame(rows)
 
 
