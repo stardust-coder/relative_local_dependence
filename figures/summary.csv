@@ -1,0 +1,4 @@
+method,bootstrap_reps,grid,negative,nonsignificant,positive,estimate_min,estimate_max
+LLB_LD_original,61,17,104,72,113,-23.68705727443902,26.13613446930344
+LLB_LD_copula,61,17,119,36,134,-27.331128710458568,27.659504271349377
+LF_RLD,61,17,111,49,129,-63.92808755503007,29.712296186793992

@@ -1,0 +1,16 @@
+,value
+raw_local_density_sample_min,5.0
+rank_sample_min,69.0
+raw_local_density_sample_max,266.0
+rank_sample_max,531.0
+raw_LLB_LD_min,-23.898649968890343
+raw_LLB_LD_max,26.39734042092542
+pseudo_LLB_LD_min,-28.320332124613742
+pseudo_LLB_LD_max,28.65951804728386
+raw_vs_truth_rmse,15.537871862249887
+pseudo_vs_truth_rmse,38.804243785205884
+raw_normalized_vs_pseudo_pearson_correlation,0.9175299033650248
+raw_vs_pseudo_naive_correlation,0.912131761983173
+raw_vs_true_sign_accuracy,0.9785841760856633
+pseudo_vs_true_sign_accuracy,0.982153480071386
+raw_converted_vs_pseudo_rmse,10.671237055838697
